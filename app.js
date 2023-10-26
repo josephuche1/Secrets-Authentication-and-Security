@@ -1,10 +1,9 @@
 //jshint esversion:6
 import 'dotenv/config';
 import express from "express";
-import ejs from "ejs";
 import bodyParser from "body-parser";
 import mongoose from "mongoose";
-import encrypt from "mongoose-encryption";
+import bcrypt from "bcrypt";
 
 const app = express();
 const port  = 3000;
@@ -27,8 +26,6 @@ const userSchema = new mongoose.Schema({
     password: String
 });
 
-userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ['password'] });
-
 const User = new mongoose.model("User", userSchema);
 
 app.get("/", (req,res) => {
@@ -47,7 +44,7 @@ app.get("/register", (req,res) => {
 app.post("/register", async (req, res) => {
     const newUser = new User({
         email: req.body.username,
-        password: req.body.password
+        password: await bcrypt.hash(req.body.password, 15)
     });
 
     await newUser.save()
@@ -65,9 +62,9 @@ app.post("/login", async (req,res) => {
     const password = req.body.password;
 
     await User.findOne({email: username})
-       .then((result) => {
+       .then(async (result) => {
            console.log(`user ${result._id} found in database`);
-           if(result.password === password){
+           if(await bcrypt.compare(password, result.password)){
               res.render("secrets");
            }
            else{
