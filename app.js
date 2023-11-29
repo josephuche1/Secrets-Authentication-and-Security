@@ -6,6 +6,8 @@ import mongoose from "mongoose";
 import session from 'express-session';
 import passport from 'passport';
 import passportLocalMongoose from "passport-local-mongoose";
+import {Strategy as GoogleStrategy} from "passport-google-oauth20";
+import findOrCreate from "mongoose-findorcreate";
 
 const app = express();
 const port  = 3000;
@@ -36,10 +38,12 @@ mongoose.connect("mongodb+srv://admin-joseph:olisa312@cluster0.ydqmrha.mongodb.n
 
 const userSchema = new mongoose.Schema({
     email: String,
-    password: String
+    password: String,
+    googleId: String
 });
 
 userSchema.plugin(passportLocalMongoose); // has to be a mongoose schema. set up userSchema to use passportLocalMongoose as a plugin
+userSchema.plugin(findOrCreate);
 
 const User = new mongoose.model("User", userSchema);
 
@@ -47,6 +51,21 @@ passport.use(User.createStrategy()); // create a strategy to authenticate our us
 
 passport.serializeUser(User.serializeUser()); // Serialze creates a cookie and saves the user info there
 passport.deserializeUser(User.deserializeUser()); // gets the user info from the cookie
+
+// using google strategy to login users
+passport.use(new GoogleStrategy({
+    clientID: process.env.CLIENT_ID,
+    clientSecret: process.env.CLIENT_SECRET,
+    callbackURL: "http://localhost:3000/auth/google/secrets",
+    userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
+  },
+  function(accessToken, refreshToken, profile, cb) {
+    console.log(profile);
+    User.findOrCreate({ googleId: profile.id, username:profile.displayName }, function (err, user) {
+      return cb(err, user);
+    });
+  }
+));
 
 app.get("/", (req,res) => {
     res.render("home");
@@ -56,6 +75,16 @@ app.get("/login", (req,res) => {
     res.render("login");
 });
 
+// Integrating google authentication with web application
+app.get('/auth/google',
+  passport.authenticate('google', { scope: ['profile'] }));
+
+app.get('/auth/google/secrets', 
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  function(req, res) {
+    // Successful authentication, redirect to.
+    res.redirect('/secrets');
+  });
 
 app.get("/register", (req,res) => {
     res.render("register");
