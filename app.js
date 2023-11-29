@@ -39,7 +39,8 @@ mongoose.connect("mongodb+srv://admin-joseph:olisa312@cluster0.ydqmrha.mongodb.n
 const userSchema = new mongoose.Schema({
     email: String,
     password: String,
-    googleId: String
+    googleId: String, 
+    secret: String
 });
 
 userSchema.plugin(passportLocalMongoose); // has to be a mongoose schema. set up userSchema to use passportLocalMongoose as a plugin
@@ -90,13 +91,14 @@ app.get("/register", (req,res) => {
     res.render("register");
 });
 
-app.get("/secrets", (req,res) => {
-    if(req.isAuthenticated()){
-        res.render("secrets");
-    } else{
-        res.redirect("/login");
-    }
-})
+app.get("/secrets", async (req,res) => {
+    await User.find({"secret":{$ne:null}})
+        .then((users) => {
+            res.render("secrets.ejs", {usersWithSecrets: users})
+        }).catch((err) => {
+            console.log(err);
+        })
+});
 
 app.post("/register", async (req, res) => {
     User.register({username: req.body.username}, req.body.password, (err, user) => {
@@ -134,6 +136,28 @@ app.get("/logout", (req,res) => {
         res.redirect("/");
     })
     
+});
+
+app.get("/submit", async (req, res) => {
+    if(req.isAuthenticated()){
+        res.render("submit.ejs");
+    }
+    else{
+        res.redirect("/login");
+    }
+});
+
+app.post("/submit", async (req,res) => {
+    const secret  = req.body.secret;
+
+    const user = await User.findById(req.user._id);
+    if(user){
+        user.secret = secret;
+        user.save();
+        res.redirect("/secrets");
+    } else{
+        res.redirect("/secrets");
+    }
 })
 
 app.listen(port, () => {
